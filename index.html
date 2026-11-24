@@ -23,15 +23,21 @@ input{display:none}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:20px}
 .stat{background:#171d29;border:1px solid #293044;padding:18px;border-radius:10px}
 .stat b{display:block;font-size:22px;color:#ae91ff;margin-top:10px}
-.result{direction:ltr;text-align:left;overflow-wrap:anywhere;color:#c6b5ff;font-size:13px}
+.result{direction:ltr;text-align:left;overflow-wrap:anywhere;color:#c6b5ff;font-size:13px;line-height:1.8}
+.result p{border-bottom:1px solid #252938;padding:7px 0}
 footer{text-align:center;padding:30px;color:#626b7d}
-@media(max-width:650px){.grid{grid-template-columns:1fr}main{margin:15px auto;padding:15px}h1{font-size:24px}}
+@media(max-width:650px){
+.grid{grid-template-columns:1fr}
+main{margin:15px auto;padding:15px}
+h1{font-size:24px}
+}
 </style>
 </head>
 <body>
+
 <header>
  <div class="logo">ALIVE <span>REA</span></div>
- <div class="muted">Analysis Studio v0.1</div>
+ <div class="muted">Analysis Studio v0.2</div>
 </header>
 
 <main>
@@ -45,14 +51,14 @@ footer{text-align:center;padding:30px;color:#626b7d}
    <div style="font-size:42px">📂</div>
    <h3>اختر ملفاً للتحليل</h3>
    <p class="muted">APK · EXE · ZIP · JS · DLL · ملفات أخرى</p>
-   <button onclick="document.getElementById('file').click()">اختيار ملف</button>
+   <button id="choose">اختيار ملف</button>
    <input type="file" id="file">
   </div>
  </section>
 
  <div class="grid">
   <div class="stat">📁 الملفات المفحوصة<b id="count">0</b></div>
-  <div class="stat">🔍 حالة المحرك<b>جاهز</b></div>
+  <div class="stat">🔍 حالة المحرك<b id="engine">جاهز</b></div>
   <div class="stat">🛡️ نوع الفحص<b>محلي</b></div>
  </div>
 
@@ -66,39 +72,115 @@ footer{text-align:center;padding:30px;color:#626b7d}
 <footer>ALIVE REA © 2026 — Built for Analysis</footer>
 
 <script>
-const fileInput=document.getElementById('file');
-const drop=document.getElementById('drop');
+const fileInput=document.getElementById("file");
+const drop=document.getElementById("drop");
+const status=document.getElementById("status");
+const results=document.getElementById("results");
+const countElement=document.getElementById("count");
+const engine=document.getElementById("engine");
+
 let count=0;
+
+document.getElementById("choose").addEventListener("click",()=>{
+ fileInput.click();
+});
+
+function detectType(b){
+ if(b[0]===0x4D&&b[1]===0x5A)
+  return ["Windows PE","ملف تنفيذي Windows"];
+
+ if(b[0]===0x50&&b[1]===0x4B)
+  return ["ZIP / APK","أرشيف ZIP أو تطبيق Android محتمل"];
+
+ if(b[0]===0x7F&&b[1]===0x45&&b[2]===0x4C&&b[3]===0x46)
+  return ["ELF","ملف Linux تنفيذي"];
+
+ if(b[0]===0x25&&b[1]===0x50&&b[2]===0x44&&b[3]===0x46)
+  return ["PDF","مستند PDF"];
+
+ if(b[0]===0x89&&b[1]===0x50&&b[2]===0x4E&&b[3]===0x47)
+  return ["PNG","صورة"];
+
+ if(b[0]===0xFF&&b[1]===0xD8&&b[2]===0xFF)
+  return ["JPEG","صورة"];
+
+ return ["Unknown","نوع غير معروف"];
+}
+
+function escapeHTML(value){
+ return String(value).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",
+ '"':"&quot;","'":"&#39;"
+ })[c]);
+}
 
 async function inspect(file){
  if(!file)return;
- document.getElementById('status').textContent='جارٍ فحص بيانات الملف...';
- const bytes=await file.arrayBuffer();
- const hash=await crypto.subtle.digest('SHA-256',bytes);
- const sha=[...new Uint8Array(hash)]
-  .map(x=>x.toString(16).padStart(2,'0')).join('');
- const ext=file.name.includes('.')?file.name.split('.').pop().toUpperCase():'غير معروف';
- const size=(file.size/1024).toFixed(2);
- count++;
- document.getElementById('count').textContent=count;
- document.getElementById('status').textContent='اكتمل الفحص الأولي بنجاح';
- document.getElementById('results').innerHTML=`
- <p>File: ${escapeHTML(file.name)}</p>
- <p>Extension: ${escapeHTML(ext)}</p>
- <p>Size: ${size} KB</p>
- <p>MIME: ${escapeHTML(file.type||'Unknown')}</p>
- <p>SHA-256: ${sha}</p>
- <p>Analysis: Metadata and file fingerprint completed.</p>`;
+
+ if(file.size>50*1024*1024){
+  status.textContent="الملف أكبر من الحد المسموح حالياً (50 MB).";
+  return;
+ }
+
+ status.textContent="جارٍ تحليل الملف...";
+ engine.textContent="يعمل...";
+ results.textContent="";
+
+ try{
+  if(!crypto.subtle)
+   throw new Error("المتصفح لا يدعم التشفير الآمن.");
+
+  const buffer=await file.arrayBuffer();
+  const bytes=new Uint8Array(buffer);
+  const type=detectType(bytes);
+
+  const digest=await crypto.subtle.digest("SHA-256",buffer);
+  const sha=[...new Uint8Array(digest)]
+   .map(x=>x.toString(16).padStart(2,"0")).join("");
+
+  const signature=[...bytes.slice(0,16)]
+   .map(x=>x.toString(16).padStart(2,"0")).join(" ");
+
+  const extension=file.name.includes(".")
+   ?file.name.split(".").pop().toUpperCase()
+   :"غير معروف";
+
+  count++;
+  countElement.textContent=count;
+  engine.textContent="جاهز";
+  status.textContent="اكتمل الفحص الأولي بنجاح";
+
+  results.innerHTML=`
+   <p>File: ${escapeHTML(file.name)}</p>
+   <p>Extension: ${escapeHTML(extension)}</p>
+   <p>Size: ${(file.size/1024).toFixed(2)} KB</p>
+   <p>MIME: ${escapeHTML(file.type||"Unknown")}</p>
+   <p>Detected Type: ${type[0]}</p>
+   <p>Classification: ${type[1]}</p>
+   <p>SHA-256: ${sha}</p>
+   <p>Signature: ${signature||"Empty file"}</p>
+   <p>Scan: Local static inspection completed.</p>
+  `;
+ }catch(error){
+  engine.textContent="خطأ";
+  status.textContent="تعذر تحليل الملف: "+error.message;
+ }
 }
-function escapeHTML(s){
- return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-fileInput.addEventListener('change',()=>inspect(fileInput.files[0]));
-drop.addEventListener('dragover',e=>e.preventDefault());
-drop.addEventListener('drop',e=>{
- e.preventDefault();
- if(e.dataTransfer.files.length)inspect(e.dataTransfer.files[0]);
+
+fileInput.addEventListener("change",()=>{
+ inspect(fileInput.files[0]);
+});
+
+drop.addEventListener("dragover",event=>{
+ event.preventDefault();
+});
+
+drop.addEventListener("drop",event=>{
+ event.preventDefault();
+ const file=event.dataTransfer.files[0];
+ if(file)inspect(file);
 });
 </script>
+
 </body>
 </html>
