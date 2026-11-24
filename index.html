@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALIVE REA</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090b10;color:#eee;font-family:Arial,sans-serif}
+header{height:70px;border-bottom:1px solid #252938;display:flex;align-items:center;justify-content:space-between;padding:0 6%;background:#10131b}
+.logo{font-size:23px;font-weight:bold;letter-spacing:1px}
+.logo span{color:#9b72ff}
+main{max-width:1100px;margin:40px auto;padding:20px}
+h1{font-size:30px}
+.muted{color:#9298a8}
+.card{background:#111620;border:1px solid #293044;border-radius:13px;padding:22px;margin-top:22px}
+.upload{border:2px dashed #57458c;border-radius:12px;padding:45px 15px;text-align:center;cursor:pointer;background:#151421}
+.upload:hover{background:#201b32}
+button{background:#8056e8;color:white;border:0;border-radius:8px;padding:12px 22px;cursor:pointer;font-weight:bold}
+button:hover{background:#966eff}
+input{display:none}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:20px}
+.stat{background:#171d29;border:1px solid #293044;padding:18px;border-radius:10px}
+.stat b{display:block;font-size:22px;color:#ae91ff;margin-top:10px}
+.result{direction:ltr;text-align:left;overflow-wrap:anywhere;color:#c6b5ff;font-size:13px}
+footer{text-align:center;padding:30px;color:#626b7d}
+@media(max-width:650px){.grid{grid-template-columns:1fr}main{margin:15px auto;padding:15px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<header>
+ <div class="logo">ALIVE <span>REA</span></div>
+ <div class="muted">Analysis Studio v0.1</div>
+</header>
+
+<main>
+ <p class="muted">REVERSE ENGINEERING & AI ANALYSIS</p>
+ <h1>مرحباً بك في ALIVE REA</h1>
+ <p class="muted">منصة ذكية لاستكشاف الملفات وتحليل البرامج بسهولة.</p>
+
+ <section class="card">
+  <h3>ابدأ تحليلك الأول</h3>
+  <div class="upload" id="drop">
+   <div style="font-size:42px">📂</div>
+   <h3>اختر ملفاً للتحليل</h3>
+   <p class="muted">APK · EXE · ZIP · JS · DLL · ملفات أخرى</p>
+   <button onclick="document.getElementById('file').click()">اختيار ملف</button>
+   <input type="file" id="file">
+  </div>
+ </section>
+
+ <div class="grid">
+  <div class="stat">📁 الملفات المفحوصة<b id="count">0</b></div>
+  <div class="stat">🔍 حالة المحرك<b>جاهز</b></div>
+  <div class="stat">🛡️ نوع الفحص<b>محلي</b></div>
+ </div>
+
+ <section class="card">
+  <h3>نتائج التحليل</h3>
+  <p class="muted" id="status">لم يتم اختيار أي ملف بعد.</p>
+  <div id="results" class="result"></div>
+ </section>
+</main>
+
+<footer>ALIVE REA © 2026 — Built for Analysis</footer>
+
+<script>
+const fileInput=document.getElementById('file');
+const drop=document.getElementById('drop');
+let count=0;
+
+async function inspect(file){
+ if(!file)return;
+ document.getElementById('status').textContent='جارٍ فحص بيانات الملف...';
+ const bytes=await file.arrayBuffer();
+ const hash=await crypto.subtle.digest('SHA-256',bytes);
+ const sha=[...new Uint8Array(hash)]
+  .map(x=>x.toString(16).padStart(2,'0')).join('');
+ const ext=file.name.includes('.')?file.name.split('.').pop().toUpperCase():'غير معروف';
+ const size=(file.size/1024).toFixed(2);
+ count++;
+ document.getElementById('count').textContent=count;
+ document.getElementById('status').textContent='اكتمل الفحص الأولي بنجاح';
+ document.getElementById('results').innerHTML=`
+ <p>File: ${escapeHTML(file.name)}</p>
+ <p>Extension: ${escapeHTML(ext)}</p>
+ <p>Size: ${size} KB</p>
+ <p>MIME: ${escapeHTML(file.type||'Unknown')}</p>
+ <p>SHA-256: ${sha}</p>
+ <p>Analysis: Metadata and file fingerprint completed.</p>`;
+}
+function escapeHTML(s){
+ return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+fileInput.addEventListener('change',()=>inspect(fileInput.files[0]));
+drop.addEventListener('dragover',e=>e.preventDefault());
+drop.addEventListener('drop',e=>{
+ e.preventDefault();
+ if(e.dataTransfer.files.length)inspect(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>
